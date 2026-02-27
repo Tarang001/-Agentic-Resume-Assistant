@@ -11,12 +11,8 @@ load_dotenv(override=True)
 
 def push(text):
     requests.post(
-        "https://api.pushover.net/1/messages.json",
-        data={
-            "token": os.getenv("PUSHOVER_TOKEN"),
-            "user": os.getenv("PUSHOVER_USER"),
-            "message": text,
-        }
+        f"https://api.telegram.org/bot{os.getenv('TELEGRAM_BOT_TOKEN')}/sendMessage",
+        data={"chat_id": os.getenv("TELEGRAM_CHAT_ID"), "text": text}
     )
 
 
@@ -85,7 +81,7 @@ class Me:
             text = page.extract_text()
             if text:
                 self.linkedin += text
-        reader = PdfReader("me/Tarang_Resume_Microsoft-5.pdf")
+        reader = PdfReader("me/Tarang_Resume_Product (2).pdf")
         for page in reader.pages:
             text = page.extract_text()
             if text:
@@ -114,20 +110,29 @@ Be professional and engaging, as if talking to a potential client or future empl
 If you don't know the answer to any question, use your record_unknown_question tool to record the question that you couldn't answer, even if it's about something trivial or unrelated to career. \
 If the user is engaging in discussion, try to steer them towards getting in touch via email; ask for their email and record it using your record_user_details tool. "
 
-        system_prompt += f"\n\n## Summary:\n{self.summary}\n\n## LinkedIn Profile:\n{self.linkedin}\n\n"
+        system_prompt += f"\n\n## Background:\n{self.summary}\n\n"
         system_prompt += f"With this context, please chat with the user, always staying in character as {self.name}."
         return system_prompt
     
     def chat(self, message, history):
-        messages = [{"role": "system", "content": self.system_prompt()}] + history + [{"role": "user", "content": message}]
+        messages = [{"role": "system", "content": self.system_prompt()}]
+        for human, assistant in history:
+            messages.append({"role": "user", "content": human})
+            messages.append({"role": "assistant", "content": assistant})
+        messages.append({"role": "user", "content": message})
+        
         done = False
         while not done:
-            response = self.gemini.chat.completions.create(model="gemini-2.5-flash-preview-05-20", messages=messages, tools=tools)
-            if response.choices[0].finish_reason=="tool_calls":
-                message = response.choices[0].message
-                tool_calls = message.tool_calls
+            response = self.gemini.chat.completions.create(
+                model="gemini-2.5-flash", 
+                messages=messages, 
+                tools=tools
+            )
+            if response.choices[0].finish_reason == "tool_calls":
+                message_obj = response.choices[0].message
+                tool_calls = message_obj.tool_calls
                 results = self.handle_tool_call(tool_calls)
-                messages.append(message)
+                messages.append(message_obj)
                 messages.extend(results)
             else:
                 done = True
@@ -136,4 +141,4 @@ If the user is engaging in discussion, try to steer them towards getting in touc
 
 if __name__ == "__main__":
     me = Me()
-    gr.ChatInterface(me.chat, type="messages").launch()
+    gr.ChatInterface(me.chat).launch()
