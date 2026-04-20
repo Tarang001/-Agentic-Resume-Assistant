@@ -72,21 +72,21 @@ tools = [{"type": "function", "function": record_user_details_json},
 class Me:
 
     def __init__(self):
-        self.google_api_key = os.getenv("GOOGLE_API_KEY")
-        self.gemini = OpenAI(base_url="https://generativelanguage.googleapis.com/v1beta/openai/", api_key=self.google_api_key)
+        self.groq_api_key = os.getenv("GROQ_API_KEY")
+        self.gemini = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=self.groq_api_key)
         self.name = "Tarang"
-        reader = PdfReader("me/Profile.pdf")
+        reader = PdfReader("Profile.pdf")
         self.linkedin = ""
         for page in reader.pages:
             text = page.extract_text()
             if text:
                 self.linkedin += text
-        reader = PdfReader("me/Tarang_Resume_Product (2).pdf")
+        reader = PdfReader("Tarang_Product_Intern_Resume.pdf")
         for page in reader.pages:
             text = page.extract_text()
             if text:
                 self.linkedin += text
-        with open("me/summary.txt", "r", encoding="utf-8") as f:
+        with open("summary.txt", "r", encoding="utf-8") as f:
             self.summary = f.read()
 
 
@@ -116,16 +116,24 @@ If the user is engaging in discussion, try to steer them towards getting in touc
     
     def chat(self, message, history):
         messages = [{"role": "system", "content": self.system_prompt()}]
-        for human, assistant in history:
-            messages.append({"role": "user", "content": human})
-            messages.append({"role": "assistant", "content": assistant})
+        
+        for item in history:
+            # New Gradio 4.x+ format: list of dicts with 'role' and 'content'
+            if isinstance(item, dict):
+                messages.append({"role": item["role"], "content": item["content"]})
+            else:
+                # Fallback for old tuple format
+                human, assistant = item
+                messages.append({"role": "user", "content": human})
+                messages.append({"role": "assistant", "content": assistant})
+        
         messages.append({"role": "user", "content": message})
         
         done = False
         while not done:
             response = self.gemini.chat.completions.create(
-                model="gemini-2.5-flash", 
-                messages=messages, 
+                model="llama-3.3-70b-versatile",
+                messages=messages,
                 tools=tools
             )
             if response.choices[0].finish_reason == "tool_calls":
@@ -141,4 +149,4 @@ If the user is engaging in discussion, try to steer them towards getting in touc
 
 if __name__ == "__main__":
     me = Me()
-    gr.ChatInterface(me.chat).launch()
+    gr.ChatInterface(me.chat).launch(server_name="0.0.0.0", server_port=7860)
